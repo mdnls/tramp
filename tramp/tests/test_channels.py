@@ -1,8 +1,10 @@
 import unittest
 from tramp.channels import (
-    AbsChannel, SgnChannel, ReluChannel, LeakyReluChannel, HardTanhChannel
+    AbsChannel, SgnChannel, ReluChannel, LeakyReluChannel, HardTanhChannel, MultiConvChannel, LinearChannel, DiagonalChannel
 )
+from tramp.ensembles import Multi2dConvEnsemble
 import numpy as np
+import torch
 
 
 def empirical_second_moment(tau_z, channel):
@@ -146,5 +148,118 @@ class ChannelsTest(unittest.TestCase):
         self._test_function_proba(channel, self.records)
 
 
+class MultiConvChannelTest(unittest.TestCase):
+    def setUp(self):
+        H, W = (10, 11) # height, width
+        k= 3
+        M, N = (3, 4) # out channels, in channels
+
+        self.inp_imdim = (N, H, W)
+        self.outp_imdim = (M, H, W)
+
+        # Generate the convolution
+        self.inp_img = np.random.normal(size=(N, H, W))
+        self.conv_ensemble = Multi2dConvEnsemble(width=W, height=H, in_channels=N, out_channels=M, k=3)
+        conv_filter = self.conv_ensemble.generate(with_filter=True)
+
+        self.conv_filter = conv_filter
+        self.mcc_channel = MultiConvChannel(self.conv_filter, block_shape=(H, W))
+        self.dense_conv = self.mcc_channel.densify()
+
+        # Construct reference implementations of convolutions and linear operators
+        self.ref_conv = torch.nn.Conv2d(in_channels=N, out_channels=M, padding_mode="circular", padding=(k - 1) // 2,
+                                    kernel_size=k, bias=False, stride=1)
+        self.ref_conv.weight.data = torch.FloatTensor(conv_filter)
+        inp_img_pt = torch.FloatTensor(self.inp_img[np.newaxis, ...])
+        ref_outp_img = self.ref_conv(inp_img_pt).detach().cpu().numpy()[0]
+        self.ref_outp_img = ref_outp_img
+
+        self.ref_linear = LinearChannel(W=self.dense_conv)
+
+    def tearDown(self):
+        pass
+
+    def test_unitary(self):
+        # Test the closed form SVD and the virtual matrix multiplication by verifying unitarity
+        Vt_img = self.mcc_channel.V.T(self.inp_img)
+        Ut_img = self.mcc_channel.U.T(self.ref_outp_img)
+
+        self.assertTrue(np.isclose(np.linalg.norm(self.inp_img), np.linalg.norm(Vt_img)))
+        self.assertTrue(np.isclose(np.linalg.norm(self.ref_outp_img), np.linalg.norm(Ut_img)))
+        self.assertTrue(np.allclose(self.inp_img, self.mcc_channel.V(Vt_img)))
+        self.assertTrue(np.allclose(self.ref_outp_img, self.mcc_channel.U(Ut_img)))
+
+    def test_densify(self):
+        # Test that densify() returns dense matrices that correctly implement sparse matrix behavior
+        Vt_img = self.mcc_channel.V.T(self.inp_img)
+        Ut_img = self.mcc_channel.U.T(self.ref_outp_img)
+        self.assertTrue(np.allclose( self.mcc_channel.V.densify() @ Vt_img.flatten(), self.inp_img.flatten()))
+        self.assertTrue(np.allclose( self.mcc_channel.U.densify() @ Ut_img.flatten(), self.ref_outp_img.flatten()))
+        self.assertTrue(np.allclose( self.mcc_channel.densify() @ self.inp_img.flatten(), self.mcc_channel(self.inp_img).flatten()))
+
+    def test_conv_agreement(self):
+        # Test the sparse matrix mult matches a pytorch 2d convolution
+        C = self.mcc_channel
+        outp_img = C @ self.inp_img
+        self.assertTrue(np.allclose(outp_img, self.ref_outp_img, atol=1e-6))
+
+    def test_linear_agreement(self):
+        # Check that the multichannel conv channel exactly matches the behavior of the corresponding
+        #   dense linear channel.
+        az = np.random.uniform(low=1, high=5)
+        ax = np.random.uniform(low=1, high=5)
+        tau_z = np.random.uniform(low=1, high=5)
+        bz = np.random.normal(size=self.inp_imdim)
+        bx = np.random.normal(size=self.outp_imdim)
+
+        self.assertTrue(np.allclose(self.mcc_channel.sample(bz).flatten(),
+                                    self.ref_linear.sample(bz.flatten())))
+
+        self.assertTrue(np.allclose(self.mcc_channel.compute_forward_variance(az, ax),
+                                    self.ref_linear.compute_forward_variance(az, ax)))
+
+        self.assertTrue(np.allclose(self.mcc_channel.compute_backward_variance(az, ax),
+                                    self.ref_linear.compute_backward_variance(az, ax)))
+
+        self.assertTrue(np.allclose(self.mcc_channel.compute_backward_mean(az, bz, ax, bx).flatten(),
+                                    self.ref_linear.compute_backward_mean(az, bz.flatten(), ax, bx.flatten())))
+
+        self.assertTrue(np.allclose(self.mcc_channel.compute_log_partition(az, bz, ax, bx),
+                                    self.ref_linear.compute_log_partition(az, bz.flatten(), ax, bx.flatten())))
+
+        self.assertTrue(np.allclose(self.mcc_channel.compute_mutual_information(az, ax, tau_z),
+                                    self.ref_linear.compute_mutual_information(az, ax, tau_z)))
+
+class DiagonalChannelTest(unittest.TestCase):
+    def setUp(self):
+        self.dim = (32, 32)
+        self.S = np.random.normal(size=self.dim)
+        self.channel = DiagonalChannel(S=self.S)
+        self.ref_linear = LinearChannel(W=np.diag(self.S.flatten()))
+
+    def test_linear_agreement(self):
+        az = np.random.uniform(low=1, high=5)
+        ax = np.random.uniform(low=1, high=5)
+        tau_z = np.random.uniform(low=1, high=5)
+        bz = np.random.normal(size=self.dim)
+        bx = np.random.normal(size=self.dim)
+
+        self.assertTrue(np.allclose(self.channel.sample(bz).flatten(),
+                                    self.ref_linear.sample(bz.flatten())))
+
+        self.assertTrue(np.allclose(self.channel.compute_forward_variance(az, ax),
+                                    self.ref_linear.compute_forward_variance(az, ax)))
+
+        self.assertTrue(np.allclose(self.channel.compute_backward_variance(az, ax),
+                                    self.ref_linear.compute_backward_variance(az, ax)))
+
+        self.assertTrue(np.allclose(self.channel.compute_backward_mean(az, bz, ax, bx).flatten(),
+                                    self.ref_linear.compute_backward_mean(az, bz.flatten(), ax, bx.flatten())))
+
+        self.assertTrue(np.allclose(self.channel.compute_log_partition(az, bz, ax, bx),
+                                    self.ref_linear.compute_log_partition(az, bz.flatten(), ax, bx.flatten())))
+
+        self.assertTrue(np.allclose(self.channel.compute_mutual_information(az, ax, tau_z),
+                                    self.ref_linear.compute_mutual_information(az, ax, tau_z)))
 if __name__ == "__main__":
     unittest.main()

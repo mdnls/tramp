@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='tramp',
-      version='0.1',
+      version='0.1.1',
       author='Antoine Baker',
       author_email='antoine.baker59@gmail.com',
       description='Tree approximate message passing',
@@ -10,5 +10,5 @@ setup(name='tramp',
       packages=setuptools.find_packages(),
       install_requires=[
           'numpy', 'scipy', 'pandas', 'matplotlib', 'daft',
-          'networkx>=1.10,<2'
+          'networkx>=1.10,<2', 'torch'
       ])

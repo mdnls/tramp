@@ -10,11 +10,11 @@ from .linear.dft_channel import DFTChannel
 from .linear.bias_channel import BiasChannel
 from .linear.rotation_channel import RotationChannel
 from .linear.unitary_channel import UnitaryChannel
-from .linear.linear_channel import LinearChannel
+from .linear.linear_channel import LinearChannel, DiagonalChannel
 from .linear.complex_linear_channel import ComplexLinearChannel
 from .linear.conv_channel import (
     ConvChannel, Blur1DChannel, Blur2DChannel,
-    DifferentialChannel, LaplacianChannel
+    DifferentialChannel, LaplacianChannel, MultiConvChannel
 )
 from .linear.gradient_channel import GradientChannel
 from .linear.analytical_linear_channel import (
@@ -61,7 +61,9 @@ CHANNEL_CLASSES = {
     "h-tanh": HardTanhChannel,
     "h-sigm": HardSigmoidChannel,
     "door": SymmetricDoorChannel,
-    "modulus": ModulusChannel
+    "modulus": ModulusChannel,
+    "multiconv": MultiConvChannel,
+    "diagonal": DiagonalChannel
 }
 
 
