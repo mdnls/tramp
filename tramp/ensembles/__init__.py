@@ -7,7 +7,7 @@ from .ternary_ensemble import TernaryEnsemble
 from .marchenko_pastur_ensemble import MarchenkoPasturEnsemble
 from .random_feature_ensemble import RandomFeatureEnsemble
 from .complex_unitary_ensemble import ComplexUnitaryEnsemble
-
+from .convolution_ensemble import Multi2dConvEnsemble, ConvEnsemble
 ENSEMBLE_CLASSES = {
     "gaussian": GaussianEnsemble,
     "complex_gaussian": ComplexGaussianEnsemble,
@@ -17,7 +17,9 @@ ENSEMBLE_CLASSES = {
     "ternary": TernaryEnsemble,
     "marchenko": MarchenkoPasturEnsemble,
     "random_feature": RandomFeatureEnsemble,
-    "complex_unitary": ComplexUnitaryEnsemble
+    "complex_unitary": ComplexUnitaryEnsemble,
+    "multi2dconv": Multi2dConvEnsemble,
+    "conv": ConvEnsemble
 }
 
 
