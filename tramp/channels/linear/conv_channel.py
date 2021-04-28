@@ -439,7 +439,6 @@ class _VirtualMCCFactor:
         return self.__tmatmul__(z)
 
     def densify(self):
-        #raise NotImplementedError("This method is currently bugged.")
         # Technically, this method densifies the transpose and returns a double transpose
         dim = np.prod(self.block_shape) * self.macro_shape[-1]
         natural_basis = np.eye(dim).reshape( (self.macro_shape[-1],) + self.block_shape + (-1,) )
