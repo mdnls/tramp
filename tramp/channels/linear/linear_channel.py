@@ -141,3 +141,58 @@ class LinearChannel(Channel):
         I = self.compute_mutual_information(az, ax, tau_z)
         A = 0.5*(az*tau_z + self.alpha*ax*tau_x) - I + 0.5*np.log(2*np.pi*tau_z/np.e)
         return A
+
+class DiagonalChannel(LinearChannel):
+    """
+    Linear channel x = diag(S)z where S is a tensor of shape matching z.
+
+    Parameters
+    ----------
+    - S: tensor whose shape matches shape of inputs z.
+    - name: str
+        name of weight matrix W for display
+
+    Notes
+    -----
+    This class behaves as LinearChannel but it does not compute diag(S) as a dense matrix.
+    """
+    def __init__(self, S, name="W"):
+        # This class uses LinearChannel method implementations but will completely overwrite its fields.
+        super().__init__(W = np.eye(2), precompute_svd=False, name=name)
+        del self.name, self.Nx, self.Nz, self.precompute_svd, self.W, \
+                self.rank, self.alpha, self.C, self.spectrum, self.singular
+
+        self.name = name
+        self.Nx = np.prod(S.shape)
+        self.Nz = self.Nx
+        self.precompute_svd = True
+        self.repr_init()
+        self.W = _VirtualDiagMatrix(S)
+        self.rank = np.sum(S != 0)
+        self.alpha = 1
+        self.U = _VirtualDiagMatrix(np.ones_like(S))
+        self.V = _VirtualDiagMatrix(np.ones_like(S))
+        self.S = _VirtualDiagMatrix(S)
+        self.singular = S**2
+        self.spectrum = S**2
+
+
+    def compute_backward_mean(self, az, bz, ax, bx):
+        bx_svd = self.U.T @ bx
+        bz_svd = self.V.T @ bz
+        resolvent = 1 / (az + ax * self.spectrum)
+        rz_svd = resolvent * (bz_svd + self.S.T @ bx_svd)
+        rz = self.V @ rz_svd
+        return rz
+
+
+class _VirtualDiagMatrix():
+    def __init__(self, S):
+        self.S = S
+
+    def __matmul__(self, z):
+        return self.S * z
+
+    @property
+    def T(self):
+        return _VirtualDiagMatrix(self.S)
