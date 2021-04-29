@@ -185,6 +185,58 @@ class DiagonalChannel(LinearChannel):
         rz = self.V @ rz_svd
         return rz
 
+class ColorwiseLinearChannel(LinearChannel):
+    def __init__(self, input_shape, output_shape, W, name="W"):
+        '''
+        Sparsely apply the given linear transformation to each color of a multi-color signal.
+
+        Given an N by M matrix W, this channel takes as input a tensor of dimensions (c, d1, d2, ..., dk),
+        where it is assumed M = d1 d2 ... dk. This channel will reshape its input to size (c, d1 ... dk) and apply
+        W to the second dimension.
+
+        Parameters
+        ----------
+        W: colorwise linear transormation.
+        input_shape: the shape (c, d1, ..., dk) of input data.
+        output_shape: the shape (c, f1, ..., fk) of output data.
+        name: name of this operator.
+        '''
+        super().__init__(W = np.eye(2), precompute_svd=False, name=name)
+        del self.name, self.Nx, self.Nz, self.precompute_svd, self.W, \
+            self.rank, self.alpha, self.C, self.spectrum, self.singular
+
+        n_colors = input_shape[0]
+        data_shape = input_shape[1:]
+        N, M = W.shape
+        assert M == np.prod(data_shape), "W must have input dimension matching the dimension of the data."
+        assert N == np.prod(output_shape[1:]), "W must have output dimension matching the dimension of the data."
+        self.name = name
+        self.Nz = n_colors * M
+        self.Nx = n_colors * N
+        self.repr_init()
+
+        self.precompute_svd = True
+        W_U, W_S, W_Vt = np.linalg.svd(W)
+        W_V = np.conj(W_Vt).T
+
+        self.W = _VirtualBlockDiagMatrix(W, input_shape=input_shape, output_shape=output_shape)
+        self.rank = n_colors * np.sum(W_S != 0)
+        self.alpha = 1
+
+        self.U = _VirtualBlockDiagMatrix(W_U, input_shape=input_shape, output_shape=output_shape)
+        self.V = _VirtualBlockDiagMatrix(W_V, input_shape=input_shape, output_shape=output_shape)
+        self.S = _VirtualDiagMatrix(W_S.reshape((1,) + data_shape))
+
+        self.singular = np.tile(W_S[np.newaxis, :], (n_colors, 1))
+        self.spectrum = np.tile(W_S[np.newaxis, :], (n_colors, 1)).reshape(input_shape)
+
+    def compute_backward_mean(self, az, bz, ax, bx):
+        bx_svd = self.U.T @ bx
+        bz_svd = self.V.T @ bz
+        resolvent = 1 / (az + ax * self.spectrum)
+        rz_svd = resolvent * (bz_svd + self.S.T @ bx_svd)
+        rz = self.V @ rz_svd
+        return rz
 
 class _VirtualDiagMatrix():
     def __init__(self, S):
@@ -195,4 +247,18 @@ class _VirtualDiagMatrix():
 
     @property
     def T(self):
-        return _VirtualDiagMatrix(self.S)
+        return _VirtualDiagMatrix(np.conj(self.S))
+
+class _VirtualBlockDiagMatrix():
+    def __init__(self, M, input_shape, output_shape):
+        self.M = M
+        self.input_shape = input_shape
+        self.outp_shape = output_shape
+
+    def __matmul__(self, z):
+        c = self.input_shape[0]
+        return (self.M @ z.reshape((c, -1)).T).T.reshape(self.outp_shape)
+
+    @property
+    def T(self):
+        return _VirtualBlockDiagMatrix(np.conj(self.M.T), input_shape = self.outp_shape, output_shape=self.input_shape)
