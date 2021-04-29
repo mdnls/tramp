@@ -1,6 +1,7 @@
 import unittest
 from tramp.channels import (
-    AbsChannel, SgnChannel, ReluChannel, LeakyReluChannel, HardTanhChannel, MultiConvChannel, LinearChannel, DiagonalChannel
+    AbsChannel, SgnChannel, ReluChannel, LeakyReluChannel, HardTanhChannel,
+    MultiConvChannel, LinearChannel, DiagonalChannel, UpsampleChannel
 )
 from tramp.ensembles import Multi2dConvEnsemble
 import numpy as np
@@ -261,5 +262,19 @@ class DiagonalChannelTest(unittest.TestCase):
 
         self.assertTrue(np.allclose(self.channel.compute_mutual_information(az, ax, tau_z),
                                     self.ref_linear.compute_mutual_information(az, ax, tau_z)))
+
+
+class UpsampleChannelTest(unittest.TestCase):
+    def setUp(self):
+        self.example_image = np.random.normal(size=(3, 32, 32))
+        self.channel = UpsampleChannel(input_shape=(3, 32, 32), output_shape=(3, 64, 64))
+        self.ref_upsample_operator = torch.nn.Upsample(size=(64, 64), mode="bilinear", align_corners=False)
+
+    def test_upsample_agreement(self):
+        ref_ups_image = self.ref_upsample_operator(torch.FloatTensor(self.example_image[np.newaxis, ...]))[0].detach().numpy()
+        ups_image = self.channel.sample(self.example_image)
+        self.assertTrue(np.allclose(ups_image, ref_ups_image, atol=1e-6))
+
 if __name__ == "__main__":
+
     unittest.main()

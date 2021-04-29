@@ -328,6 +328,8 @@ class MultiConvChannel(LinearChannel):
     def __call__(self, z):
         return self @ z
 
+    # TODO: add a @property which returns a transposed version of this array, to better match
+    #   numpy behavior.
     def T(self, z):
         return self.__tmatmul__(z)
 

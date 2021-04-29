@@ -10,7 +10,7 @@ from .linear.dft_channel import DFTChannel
 from .linear.bias_channel import BiasChannel
 from .linear.rotation_channel import RotationChannel
 from .linear.unitary_channel import UnitaryChannel
-from .linear.linear_channel import LinearChannel, DiagonalChannel
+from .linear.linear_channel import LinearChannel, DiagonalChannel, ColorwiseLinearChannel
 from .linear.complex_linear_channel import ComplexLinearChannel
 from .linear.conv_channel import (
     ConvChannel, Blur1DChannel, Blur2DChannel,
@@ -31,7 +31,7 @@ from .activation.modulus_channel import ModulusChannel
 # low rank
 from .low_rank.low_rank_gram_channel import LowRankGramChannel
 from .low_rank.low_rank_factorization import LowRankFactorization
-
+from .linear.upsampling_channel import UpsampleChannel
 
 CHANNEL_CLASSES = {
     "gaussian": GaussianChannel,
@@ -63,7 +63,9 @@ CHANNEL_CLASSES = {
     "door": SymmetricDoorChannel,
     "modulus": ModulusChannel,
     "multiconv": MultiConvChannel,
-    "diagonal": DiagonalChannel
+    "diagonal": DiagonalChannel,
+    "colorwise": ColorwiseLinearChannel,
+    "upsample": UpsampleChannel
 }
 
 
