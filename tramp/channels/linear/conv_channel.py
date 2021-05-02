@@ -279,7 +279,7 @@ class MultiConvChannel(LinearChannel):
 
 
     def sample(self, Z):
-        X = self @ Z
+        X = self.at(Z)
         return X
 
     def second_moment(self, tau_z):
@@ -319,14 +319,12 @@ class MultiConvChannel(LinearChannel):
         A = 0.5*(az*tau_z + self.alpha*ax*tau_x) - I + 0.5*np.log(2*np.pi*tau_z/np.e)
         return A
 
-    def __matmul__(self, z):
+    def at(self, z):
+        ''' Right multiply z by this MCC matrix. '''
         return self.U(self._scale(self.V.T(z)))
 
     def __tmatmul__(self, z):
         return self.V(self._scale(self.U.T(z), transpose=True))
-
-    def __call__(self, z):
-        return self @ z
 
     # TODO: add a @property which returns a transposed version of this array, to better match
     #   numpy behavior.

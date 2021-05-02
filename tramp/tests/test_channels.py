@@ -196,12 +196,12 @@ class MultiConvChannelTest(unittest.TestCase):
         Ut_img = self.mcc_channel.U.T(self.ref_outp_img)
         self.assertTrue(np.allclose( self.mcc_channel.V.densify() @ Vt_img.flatten(), self.inp_img.flatten()))
         self.assertTrue(np.allclose( self.mcc_channel.U.densify() @ Ut_img.flatten(), self.ref_outp_img.flatten()))
-        self.assertTrue(np.allclose( self.mcc_channel.densify() @ self.inp_img.flatten(), self.mcc_channel(self.inp_img).flatten()))
+        self.assertTrue(np.allclose( self.mcc_channel.densify() @ self.inp_img.flatten(), self.mcc_channel.at(self.inp_img).flatten()))
 
     def test_conv_agreement(self):
         # Test the sparse matrix mult matches a pytorch 2d convolution
         C = self.mcc_channel
-        outp_img = C @ self.inp_img
+        outp_img = C.at(self.inp_img)
         self.assertTrue(np.allclose(outp_img, self.ref_outp_img, atol=1e-6))
 
     def test_linear_agreement(self):
