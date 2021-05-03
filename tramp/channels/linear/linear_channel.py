@@ -223,9 +223,12 @@ class ColorwiseLinearChannel(LinearChannel):
         self.rank = n_colors * np.sum(W_S != 0)
         self.alpha = 1
 
-        self.U = _VirtualBlockDiagMatrix(W_U, input_shape=input_shape, output_shape=output_shape)
-        self.V = _VirtualBlockDiagMatrix(W_V, input_shape=input_shape, output_shape=output_shape)
-        self.S = _VirtualDiagMatrix(W_S.reshape((1,) + data_shape))
+        self.U = _VirtualBlockDiagMatrix(W_U, input_shape=output_shape, output_shape=output_shape)
+        self.V = _VirtualBlockDiagMatrix(W_V, input_shape=input_shape, output_shape=input_shape)
+
+        W_S_dense = np.zeros_like(W)
+        W_S_dense[0:len(W_S), 0:len(W_S)] = W_S
+        self.S = _VirtualBlockDiagMatrix(W_S_dense, input_shape=input_shape, output_shape=output_shape)
 
         self.singular = np.tile(W_S[np.newaxis, :], (n_colors, 1))
         self.spectrum = np.tile(W_S[np.newaxis, :], (n_colors, 1)).reshape(input_shape)
@@ -239,15 +242,40 @@ class ColorwiseLinearChannel(LinearChannel):
         return rz
 
 class _VirtualDiagMatrix():
-    def __init__(self, S):
+    def __init__(self, S, input_shape=None, output_shape=None):
+        '''
+        Virtual diagonal matrix. Scale coordintes of inputs by the elements of S. If inp_shape and outp_shape are
+        provided, this class implements a rectangular matrix by chopping or adding dimensions where necessary.
+
+        Args:
+            S: diagonal coefficients of the matrix.
+            inp_shape: shape of inputs.
+            outp_shape: shape of outputs
+        '''
+        assert (input_shape is None and output_shape is None) or ( (not input_shape is None ) and (not output_shape is None) ),\
+            "You must path either both or none of the arguments [inp_shape, outp_shape]."
         self.S = S
+        self.inp_shape = input_shape
+        self.outp_shape = output_shape
 
     def __matmul__(self, z):
-        return self.S * z
+        if(self.inp_shape is not None):
+            m, n = np.prod(self.outp_shape), np.prod(n)
+            z = z.flatten()[:r].reshape(self.S.shape)
+            scaled = self.S * z
+            if(m < r):
+                reshaped = np.pad(scaled.flatten(), [(0, m-n)])
+            elif(r < m):
+                reshaped = scaled.flatten()[:m]
+            else:
+                reshaped = scaled
+            return reshaped.reshape(self.outp_shape)
+        else:
+            return self.S * z
 
     @property
     def T(self):
-        return _VirtualDiagMatrix(np.conj(self.S))
+        return _VirtualDiagMatrix(np.conj(self.S), input_shape=self.outp_shape, output_shape=self.inp_shape)
 
 class _VirtualBlockDiagMatrix():
     def __init__(self, M, input_shape, output_shape):
