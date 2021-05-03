@@ -269,8 +269,9 @@ class MultiConvChannel(LinearChannel):
         self.S = S
         self.V = V
 
-        self.singular = np.zeros(block_shape + (min(m, n), ))
-        self.spectrum = np.zeros(block_shape + (max(m, n), ))
+        # TODO: this code does not currently match dfns of what singular, spectrum should be.
+        self.singular = np.zeros(block_shape + (m,))
+        self.spectrum = np.zeros(block_shape + (n,))
         self.singular[tuple(slice(0, k) for k in self.S.shape)] = S**2
         self.spectrum[tuple(slice(0, k) for k in self.S.shape)] = S**2
 
@@ -295,7 +296,7 @@ class MultiConvChannel(LinearChannel):
 
     def compute_forward_mean(self, az, bz, ax, bx):
         rz = self.compute_backward_mean(az, bz, ax, bx)
-        rx = self @ rz
+        rx = self.at(rz)
         return rx
 
     def compute_forward_variance(self, az, ax):
