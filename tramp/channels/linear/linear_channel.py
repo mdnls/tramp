@@ -259,19 +259,7 @@ class _VirtualDiagMatrix():
         self.outp_shape = output_shape
 
     def __matmul__(self, z):
-        if(self.inp_shape is not None):
-            m, n = np.prod(self.outp_shape), np.prod(n)
-            z = z.flatten()[:r].reshape(self.S.shape)
-            scaled = self.S * z
-            if(m < r):
-                reshaped = np.pad(scaled.flatten(), [(0, m-n)])
-            elif(r < m):
-                reshaped = scaled.flatten()[:m]
-            else:
-                reshaped = scaled
-            return reshaped.reshape(self.outp_shape)
-        else:
-            return self.S * z
+        return self.S * z
 
     @property
     def T(self):
