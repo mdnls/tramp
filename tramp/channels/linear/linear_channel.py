@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.linalg
 from ..base_channel import Channel
 import logging
 logger = logging.getLogger(__name__)
@@ -194,6 +195,7 @@ class ColorwiseLinearChannel(LinearChannel):
         where it is assumed M = d1 d2 ... dk. This channel will reshape its input to size (c, d1 ... dk) and apply
         W to the second dimension.
 
+
         Parameters
         ----------
         W: colorwise linear transormation.
@@ -241,6 +243,9 @@ class ColorwiseLinearChannel(LinearChannel):
         rz = self.V @ rz_svd
         return rz
 
+    def densify(self):
+        return self.W.densify()
+
 class _VirtualDiagMatrix():
     def __init__(self, S, input_shape=None, output_shape=None):
         '''
@@ -274,6 +279,10 @@ class _VirtualBlockDiagMatrix():
     def __matmul__(self, z):
         c = self.input_shape[0]
         return (self.M @ z.reshape((c, -1)).T).T.reshape(self.outp_shape)
+
+    def densify(self):
+        n_blocks = self.input_shape[0]
+        return scipy.linalg.block_diag(* [self.M]*n_blocks)
 
     @property
     def T(self):

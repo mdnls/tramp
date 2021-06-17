@@ -1,36 +1,3 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-
-# Jupyter Notebook
-.ipynb_checkpoints
-wip_notebooks
-
-*.pdf
-
-# MacOS
 .DS_Store
-
-# Logs
-*.log
-
-# Used by pytest
-.pytest_cache/
-
-# Setuptools distribution folder
-/dist/
-
-# Python egg metadata
-/*.egg-info
-
-/.vscode/
-
-# docs directory
-/docs/_build/
-/docs/modules/
-/docs/gallery/
-/docs/auto-examples/
-/docs/path.to.file
-
-
-/examples_tmp/
+.idea
+__pycache__
