@@ -266,14 +266,49 @@ class DiagonalChannelTest(unittest.TestCase):
 
 class UpsampleChannelTest(unittest.TestCase):
     def setUp(self):
-        self.example_image = np.random.normal(size=(3, 32, 32))
-        self.channel = UpsampleChannel(input_shape=(3, 32, 32), output_shape=(3, 64, 64))
-        self.ref_upsample_operator = torch.nn.Upsample(size=(64, 64), mode="bilinear", align_corners=False)
+        self.inp_imdim = (3, 5, 5)
+        self.outp_imdim = (3, 10, 10)
+        self.example_image = np.random.normal(size=self.inp_imdim)
+        self.channel = UpsampleChannel(input_shape=self.inp_imdim, output_shape=self.outp_imdim)
+        self.ref_upsample_operator = torch.nn.Upsample(size=self.outp_imdim[1:], mode="bilinear", align_corners=False)
+        self.ref_linear = LinearChannel(self.channel.densify())
 
     def test_upsample_agreement(self):
         ref_ups_image = self.ref_upsample_operator(torch.FloatTensor(self.example_image[np.newaxis, ...]))[0].detach().numpy()
         ups_image = self.channel.sample(self.example_image)
         self.assertTrue(np.allclose(ups_image, ref_ups_image, atol=1e-6))
+
+    def test(self):
+        ref_ups_image = self.ref_upsample_operator(torch.FloatTensor(self.example_image[np.newaxis, ...]))[0].detach().numpy()
+        ups_image = self.channel.sample(self.example_image)
+        self.assertTrue(np.allclose(ups_image, ref_ups_image, atol=1e-6))
+
+    def test_linear_agreement(self):
+        az = np.random.uniform(low=1, high=5)
+        ax = np.random.uniform(low=1, high=5)
+        tau_z = np.random.uniform(low=1, high=5)
+        bz = np.random.normal(size=self.inp_imdim)
+        bx = np.random.normal(size=self.outp_imdim)
+
+        self.assertTrue(np.allclose(self.channel.sample(bz).flatten(),
+                                    self.ref_linear.sample(bz.flatten())))
+
+        self.assertTrue(np.allclose(self.channel.compute_forward_variance(az, ax),
+                                    self.ref_linear.compute_forward_variance(az, ax)))
+
+        self.assertTrue(np.allclose(self.channel.compute_backward_variance(az, ax),
+                                    self.ref_linear.compute_backward_variance(az, ax)))
+
+        self.assertTrue(np.allclose(self.channel.compute_backward_mean(az, bz, ax, bx).flatten(),
+                                    self.ref_linear.compute_backward_mean(az, bz.flatten(), ax, bx.flatten())))
+
+        self.assertTrue(np.allclose(self.channel.compute_log_partition(az, bz, ax, bx),
+                                    self.ref_linear.compute_log_partition(az, bz.flatten(), ax, bx.flatten())))
+
+        self.assertTrue(np.allclose(self.channel.compute_mutual_information(az, ax, tau_z),
+                                    self.ref_linear.compute_mutual_information(az, ax, tau_z)))
+
+
 
 if __name__ == "__main__":
 

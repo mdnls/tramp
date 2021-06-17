@@ -20,12 +20,11 @@ class UpsampleChannel(ColorwiseLinearChannel):
         This implementation is consistent with the Pytorch Upsample operation.
         '''
         assert mode in ['bilinear', 'nearest'], f"Upsampling mode {mode} was not recognized among ['bilinear', 'nearest']"
-        n_colors = input_shape[0]
         inp_data_shape = input_shape[1:]
         outp_data_shape = output_shape[1:]
 
         natural_basis = np.eye(np.prod(inp_data_shape)).reshape((1, -1,) + inp_data_shape)
-        operator = torch.nn.Upsample(size=outp_data_shape, mode=mode)
+        operator = torch.nn.Upsample(size=outp_data_shape, mode=mode, align_corners=True)
         img_of_operator = operator(torch.FloatTensor(natural_basis))
         img_of_operator = img_of_operator[0].detach().numpy().transpose((1, 2, 0))
         op_matrix = img_of_operator.reshape((np.prod(outp_data_shape), np.prod(inp_data_shape)))

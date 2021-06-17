@@ -143,6 +143,15 @@ class LinearChannel(Channel):
         A = 0.5*(az*tau_z + self.alpha*ax*tau_x) - I + 0.5*np.log(2*np.pi*tau_z/np.e)
         return A
 
+    def _compute_backward_mean(self, az, bz, ax, bx):
+        bx_svd = self.U.T @ bx
+        bz_svd = self.V.T @ bz
+        resolvent = 1 / (az + ax * self.spectrum)
+        rz_svd = resolvent * (bz_svd + self.S.T @ bx_svd)
+        rz = self.V @ rz_svd
+        return rz, bx_svd, bz_svd, resolvent, rz_svd
+
+
 class DiagonalChannel(LinearChannel):
     """
     Linear channel x = diag(S)z where S is a tensor of shape matching z.
@@ -186,6 +195,7 @@ class DiagonalChannel(LinearChannel):
         rz = self.V @ rz_svd
         return rz
 
+
 class ColorwiseLinearChannel(LinearChannel):
     def __init__(self, input_shape, output_shape, W, name="W"):
         '''
@@ -223,17 +233,21 @@ class ColorwiseLinearChannel(LinearChannel):
 
         self.W = _VirtualBlockDiagMatrix(W, input_shape=input_shape, output_shape=output_shape)
         self.rank = n_colors * np.sum(W_S != 0)
-        self.alpha = 1
+        self.alpha = self.Nx / self.Nz
 
         self.U = _VirtualBlockDiagMatrix(W_U, input_shape=output_shape, output_shape=output_shape)
         self.V = _VirtualBlockDiagMatrix(W_V, input_shape=input_shape, output_shape=input_shape)
 
+        r = len(W_S)
         W_S_dense = np.zeros_like(W)
-        W_S_dense[0:len(W_S), 0:len(W_S)] = W_S
+        W_S_dense[range(r), range(r)] = W_S
         self.S = _VirtualBlockDiagMatrix(W_S_dense, input_shape=input_shape, output_shape=output_shape)
 
+
         self.singular = np.tile(W_S[np.newaxis, :], (n_colors, 1))
+        self.singular = np.abs(self.singular)**2
         self.spectrum = np.tile(W_S[np.newaxis, :], (n_colors, 1)).reshape(input_shape)
+        self.spectrum = np.abs(self.spectrum)**2
 
     def compute_backward_mean(self, az, bz, ax, bx):
         bx_svd = self.U.T @ bx
