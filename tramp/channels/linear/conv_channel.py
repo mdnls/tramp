@@ -284,7 +284,7 @@ class MultiConvChannel(LinearChannel):
         return X
 
     def second_moment(self, tau_z):
-        return tau_z * self.S.sum() / self.Nx
+        return tau_z * self.spectrum.sum() / self.Nx
 
     def compute_backward_mean(self, az, bz, ax, bx):
         bx_svd = self.U.T(bx)

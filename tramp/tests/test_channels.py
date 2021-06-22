@@ -161,7 +161,7 @@ class MultiConvChannelTest(unittest.TestCase):
         # Generate the convolution
         self.inp_img = np.random.normal(size=(N, H, W))
         self.conv_ensemble = Multi2dConvEnsemble(width=W, height=H, in_channels=N, out_channels=M, k=3)
-        conv_filter = self.conv_ensemble.generate(with_filter=True)
+        conv_filter = self.conv_ensemble.generate()
 
         self.conv_filter = conv_filter
         self.mcc_channel = MultiConvChannel(self.conv_filter, block_shape=(H, W))
@@ -228,6 +228,12 @@ class MultiConvChannelTest(unittest.TestCase):
         self.assertTrue(np.allclose(self.mcc_channel.compute_log_partition(az, bz, ax, bx),
                                     self.ref_linear.compute_log_partition(az, bz.flatten(), ax, bx.flatten())))
 
+        self.assertTrue(np.allclose(self.mcc_channel.second_moment(tau_z),
+                                    self.ref_linear.second_moment(tau_z)))
+
+        self.assertTrue(np.allclose(self.mcc_channel.compute_free_energy(az, ax, tau_z),
+                                    self.ref_linear.compute_free_energy(az, ax, tau_z)))
+
         self.assertTrue(np.allclose(self.mcc_channel.compute_mutual_information(az, ax, tau_z),
                                     self.ref_linear.compute_mutual_information(az, ax, tau_z)))
 
@@ -259,6 +265,12 @@ class DiagonalChannelTest(unittest.TestCase):
 
         self.assertTrue(np.allclose(self.channel.compute_log_partition(az, bz, ax, bx),
                                     self.ref_linear.compute_log_partition(az, bz.flatten(), ax, bx.flatten())))
+
+        self.assertTrue(np.allclose(self.channel.second_moment(tau_z),
+                                    self.ref_linear.second_moment(tau_z)))
+
+        self.assertTrue(np.allclose(self.channel.compute_free_energy(az, ax, tau_z),
+                                    self.ref_linear.compute_free_energy(az, ax, tau_z)))
 
         self.assertTrue(np.allclose(self.channel.compute_mutual_information(az, ax, tau_z),
                                     self.ref_linear.compute_mutual_information(az, ax, tau_z)))
@@ -301,6 +313,12 @@ class UpsampleChannelTest(unittest.TestCase):
 
         self.assertTrue(np.allclose(self.channel.compute_backward_mean(az, bz, ax, bx).flatten(),
                                     self.ref_linear.compute_backward_mean(az, bz.flatten(), ax, bx.flatten())))
+
+        self.assertTrue(np.allclose(self.channel.second_moment(tau_z),
+                                    self.ref_linear.second_moment(tau_z)))
+
+        self.assertTrue(np.allclose(self.channel.compute_free_energy(az, ax, tau_z),
+                                    self.ref_linear.compute_free_energy(az, ax, tau_z)))
 
         self.assertTrue(np.allclose(self.channel.compute_log_partition(az, bz, ax, bx),
                                     self.ref_linear.compute_log_partition(az, bz.flatten(), ax, bx.flatten())))

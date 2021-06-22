@@ -44,7 +44,7 @@ class Multi2dConvEnsemble(Ensemble):
         self.C_out = out_channels
         self.k = k
 
-    def generate(self, with_filter=False):
+    def generate(self):
         '''
         Generate a random multichannel convolution matrix.
 
