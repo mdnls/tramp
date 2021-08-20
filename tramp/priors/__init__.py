@@ -4,6 +4,7 @@ from .binary_prior import BinaryPrior
 from .map_laplace_prior import MAP_LaplacePrior
 from .map_L21_norm_prior import MAP_L21NormPrior
 from .exponential_prior import ExponentialPrior
+from .vonmises_prior import VonMisesPrior
 
 PRIOR_CLASSES = {
     "gaussian": GaussianPrior,
@@ -11,7 +12,8 @@ PRIOR_CLASSES = {
     "binary": BinaryPrior,
     "laplace": MAP_LaplacePrior,
     "L21_norm": MAP_L21NormPrior,
-    "exponential": ExponentialPrior
+    "exponential": ExponentialPrior,
+    "vonmises": VonMisesPrior
 }
 
 
