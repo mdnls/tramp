@@ -1,5 +1,6 @@
 import numpy as np
-from scipy.special import erf, erfcx
+import scipy.optimize
+from scipy.special import erf, erfcx, i0, i1, iv
 import warnings
 
 
@@ -79,3 +80,17 @@ def sigmoid(x):
         warnings.simplefilter("ignore")
         s = 1 / (1 + np.exp(-x))
     return s
+
+def vonmises_v_to_b(v):
+    # compute the concentration parameter b given v = 1/2(1 - (I1(k)/I0(k))^2 )
+    norm_r = np.sqrt(1 - 2*v)
+    F = lambda k: (i1(k)/i0(k)) - norm_r
+    fprime = lambda k: 0.5 + 0.5 * (iv(2, k) / i0(k)) - (i1(k)/i0(k))**2
+    return scipy.optimize.newton(func=F, x0=0, fprime=fprime)
+
+def rect_to_cpx(x):
+    return x[0] + 1j * x[1]
+
+def cpx_to_rect(x):
+    return np.stack((np.real(x), np.imag(x)), axis=0)
+
