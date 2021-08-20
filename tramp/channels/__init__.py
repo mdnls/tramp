@@ -12,6 +12,7 @@ from .linear.rotation_channel import RotationChannel
 from .linear.unitary_channel import UnitaryChannel
 from .linear.linear_channel import LinearChannel, DiagonalChannel, ColorwiseLinearChannel
 from .linear.complex_linear_channel import ComplexLinearChannel
+from .linear.product_channel import ProductChannel
 from .linear.conv_channel import (
     ConvChannel, Blur1DChannel, Blur2DChannel,
     DifferentialChannel, LaplacianChannel, MultiConvChannel
@@ -65,7 +66,8 @@ CHANNEL_CLASSES = {
     "multiconv": MultiConvChannel,
     "diagonal": DiagonalChannel,
     "colorwise": ColorwiseLinearChannel,
-    "upsample": UpsampleChannel
+    "upsample": UpsampleChannel,
+    "product": ProductChannel
 }
 
 
