@@ -4,6 +4,10 @@ from ...utils.integration import cpx_gaussian_measure_2d, gaussian_measure_2d
 from ...utils.misc import rect_to_cpx, cpx_to_rect
 import logging
 
+
+def dot(x, y):
+    return np.real(x) * np.real(y) + np.imag(x) * np.imag(y)
+
 logger = logging.getLogger(__name__)
 
 class ProductChannel(SOFactor):
@@ -22,17 +26,19 @@ class ProductChannel(SOFactor):
         self.shape = shape
         self.layer_idx = layer_idx
         self.repr_init()
-        self.vec_forward_mean = self._vectorize(self.coordinate_forward_mean)
-        self.vec_forward_var = self._vectorize(self.coordinate_forward_var)
-        self.vec_backward_mean = self._vectorize(self.coordinate_backward_mean_unary)
-        self.vec_backward_var = self._vectorize(self.coordinate_backward_var_unary)
-
+        self.vec_forward_mean = self._vectorize(self._coordinate_forward_mean)
+        self.vec_forward_var = self._vectorize(self._coordinate_forward_var)
+        self.vec_backward_mean_S = self._vectorize(self._coordinate_backward_mean_S)
+        self.vec_backward_var_S = self._vectorize(self._coordinate_backward_var_S)
+        self.vec_backward_mean_Z = self._vectorize(self._coordinate_backward_mean_Z)
+        self.vec_backward_var_Z = self._vectorize(self._coordinate_backward_var_Z)
+        self.vec_partition = self._vectorize(self._partition)
     def _vectorize(self, F):
         '''
         Assume F takes as input a sequence of k vectors of shape either [d1, d2, ..., dj] or scalar [,]
         Where F : C^k -> C is a complex valued function
 
-        This method first broadcasts all scalars to have shape [d1, ..., dj] then evaluates F on every coordinate (ie. assignment of (d1, d2, ..., dj)).
+        This method first broadcasts all scalars to have shape [d1, ..., dj] then evaluates F on every coordinate (ie. choice of indices (d1, d2, ..., dj)).
         '''
         def is_scalar(x):
             return isinstance(x, int) or isinstance(x, float) or isinstance(x, complex) or (isinstance(x, np.ndarray) and x.flatten().shape == (1,))
@@ -62,88 +68,59 @@ class ProductChannel(SOFactor):
         else:
             return "D"
 
-    def coordinate_forward_var(self, aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx):
-        # aZ, aS, ax are real scalar precisions
-        # bZ_cpx, bS_cpx, bX_cpx are complex valued scalar means
-        rZ = bZ_cpx/aZ
-        vZ = 1/aZ
+    def _partition(self, aZ, bZ, aS, bS, aX, bX):
+        return self._integrate(None, aZ, bZ, aS, bS, aX, bX, real_only=True)
 
-        def vX_statistic(z_real, z_imag):
-            z_ = rect_to_cpx(np.stack((z_real, z_imag), axis=0))
-            return (np.conj(z_) * z_)/(aS + (np.conj(z_) * z_) * ax)
+    def _integrate(self, F, aZ, bZ, aS, bS, aX, bX, real_only=False):
+        ''' integrate F(s, b_Zhat, a_Zhat) with respect to the unnormalized posterior measure of this factor.
+        this integration is factorized as ∫ds ∫dz (...) where the inner integral is gaussian with parameter dependence on s. '''
 
-        vX = np.real_if_close(gaussian_measure_2d(np.real(rZ), vZ, np.imag(rZ), vZ, vX_statistic))
-        return vX
+        def integrand(u_Re, u_Im, _F=None):
+            u = u_Re + 1j * u_Im
+            s = bS/aS + u / np.sqrt(aS)
+            b_Zhat = (bZ + np.conj(s) * bX)
+            a_Zhat = (aZ + np.conj(s) * s * aX)
+            x = _F(s, b_Zhat, a_Zhat) if (_F is not None) else 1
+            return (1/np.sqrt(aS)) * np.exp(b_Zhat * np.conj(b_Zhat) / (2 * a_Zhat)) * (2 * np.pi / a_Zhat) * x
 
-    def coordinate_forward_mean(self, aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx):
-        # aZ, aS, ax are real scalar precisions
-        # bZ_cpx, bS_cpx, bX_cpx are complex valued scalar means
-        rZ = bZ_cpx/aZ
-        vZ = 1/aZ
+        return cpx_gaussian_measure_2d(0, 1, 0, 1, lambda u1, u2: integrand(u1, u2, F), real_only=real_only)
 
-        def rX_statistic(z_real, z_imag):
-            z_ = rect_to_cpx(np.stack((z_real, z_imag), axis=0))
-            return z_ * (bS_cpx + np.conj(z_) * bX_cpx)/(aS + (np.conj(z_) * z_) * ax)
+    '''WARNING: the _coordinate methods compute quantities that are not normalized by the partition function'''
+    def _coordinate_forward_var(self, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx):
+        F = lambda s, b_Zhat, a_Zhat: np.real(s * np.conj(s) * 1/a_Zhat)
+        return self._integrate(F, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx, real_only=True)
 
-        rX = cpx_gaussian_measure_2d(np.real(rZ), vZ, np.imag(rZ), vZ, rX_statistic)
-        return rX
+    def _coordinate_forward_mean(self, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx):
+        F = lambda s, b_Zhat, a_Zhat: s * b_Zhat/a_Zhat
+        return self._integrate(F, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx)
 
-    def coordinate_backward_var_unary(self, aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx, reverse=True):
-        # aZ, aS, ax are real scalar precisions
-        # bZ_cpx, bS_cpx, bX_cpx are complex valued scalar means
-        rZ = bZ_cpx / aZ
-        vZ = 1 / aZ
+    def _coordinate_backward_var_Z(self, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx):
+        F = lambda s, b_Zhat, a_Zhat: np.real(1/a_Zhat)
+        return self._integrate(F, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx, real_only=True)
 
-        rS = bS_cpx / aS
-        vS = 1 / aS
+    def _coordinate_backward_mean_Z(self, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx):
+        F = lambda s, b_Zhat, a_Zhat: b_Zhat/a_Zhat
+        return self._integrate(F, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx)
 
-        # Plug in either a_ = aS, b_ = bS and integrate over z, or vice versa
-        def v_statistic(z_real, z_imag, a_):
-            z_ = rect_to_cpx(np.stack((z_real, z_imag), axis=0))
-            return 1 / (a_ + (np.conj(z_) * z_) * ax)
+    def _coordinate_backward_var_S(self, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx):
+        F = lambda s, b_Zhat, a_Zhat: np.real(s * np.conj(s))
+        return self._integrate(F, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx, real_only=True)
 
-        vZ_statistic = lambda s1, s2: v_statistic(s1, s2, aZ)
-        vS_statistic = lambda z1, z2: v_statistic(z1, z2, aS)
-
-        if(reverse):
-            return np.real_if_close(cpx_gaussian_measure_2d(np.real(rS), vS, np.imag(rS), vS, vZ_statistic))
-        else:
-            return np.real_if_close(cpx_gaussian_measure_2d(np.real(rZ), vZ, np.imag(rZ), vZ, vS_statistic))
-
-    def coordinate_backward_mean_unary(self, aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx, reverse=True):
-        '''
-        Computes the backward mean for one of two channel inputs as a complex number.
-        That is, for x=zs, compute the posterior mean of z. If reverse then compute mean for s instead.
-        '''
-        rZ = bZ_cpx/aZ
-        vZ = 1/aZ
-
-        rS = bS_cpx / aS
-        vS = 1 / aS
-
-        # Plug in either a_ = aS, b_ = bS and integrate over z, or vice versa
-        def r_statistic(z_real, z_imag, a_, b_):
-            z_ = rect_to_cpx(np.stack((z_real, z_imag), axis=0))
-            return (b_ + np.conj(z_) * bX_cpx) / (a_ + (np.conj(z_) * z_) * ax)
-
-        rZ_statistic = lambda s1, s2: r_statistic(s1, s2, aZ, bZ_cpx)
-        rS_statistic = lambda z1, z2: r_statistic(z1, z2, aS, bS_cpx)
-
-        if(reverse):
-            return cpx_gaussian_measure_2d(np.real(rZ), vZ, np.imag(rZ), vZ, rS_statistic)
-        else:
-            return cpx_gaussian_measure_2d(np.real(rS), vS, np.imag(rS), vS, rZ_statistic)
+    def _coordinate_backward_mean_S(self, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx):
+        F = lambda s, b_Zhat, a_Zhat: s
+        return self._integrate(F, aZ, bZ_cpx, aS, bS_cpx, aX, bX_cpx)
 
     def compute_forward_posterior(self, az, bz, ax, bx):
         aZ, aS = az
         bZ, bS = bz
 
         bZ_cpx = rect_to_cpx(bZ)
-        bS_cpx = rect_to_cpx(bZ)
+        bS_cpx = rect_to_cpx(bS)
         bX_cpx = rect_to_cpx(bx)
 
-        rX = cpx_to_rect(self.vec_forward_mean(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx))
-        vX = self.vec_forward_var(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx).mean()
+        Z = self.vec_partition(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx)
+        rX = cpx_to_rect(self.vec_forward_mean(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx)) / Z
+        vX = (self.vec_forward_var(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx).mean() / Z).mean()
         return rX, vX
 
     def compute_backward_posterior(self, az, bz, ax, bx):
@@ -154,30 +131,14 @@ class ProductChannel(SOFactor):
         bS_cpx = rect_to_cpx(bS)
         bX_cpx = rect_to_cpx(bx)
 
-        aZ = np.ones_like(bZ_cpx) * aZ
-        aS = np.ones_like(bS_cpx) * aS
+        Z = self.vec_partition(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx)
+        rZ = cpx_to_rect(self.vec_backward_mean_Z(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx) / Z)
+        vZ = (self.vec_backward_var_Z(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx) / Z).mean()
+        rS = cpx_to_rect(self.vec_backward_mean_S(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx) / Z)
+        vS = (self.vec_backward_var_S(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx) / Z).mean()
 
-        both_inp_b = np.stack([bZ_cpx, bS_cpx], axis=0)
-        both_inp_b_swap = np.stack([bS_cpx, bX_cpx], axis=0)
-        both_inp_a = np.stack([aZ, aS], axis=0)
-        both_inp_a_swap = np.stack([aS, aZ], axis=0)
-        duplicate_bx = np.stack([bX_cpx, bX_cpx], axis=0)
-
-        '''
-        Something potentially confusing about this implementation: it provides two ways to compute the posterior 
-        means, and the one used here is more obscure. 
-            1. Used here: _vectorize evaluates the correct gaussian integral coordinatewise, so here
-                we stack [rZ, rS] parameters and compute all at once coordinatewise. 
-            2. Not used, but possible: coordinate_backward_mean_unary has the reverse option which would allow one
-                to compute [rZ] with only Z parameters, then do it again with rS parameters using reverse=True.
-        '''
-
-        # vec_backward_mean returns [rZ, rS] as complex numbers. We convert to rectangular form.
-        rz_cpx = self.vec_backward_mean(both_inp_a, both_inp_b, both_inp_a_swap, both_inp_b_swap, ax, duplicate_bx)
-        rz = np.stack([cpx_to_rect(rz_cpx[0]), cpx_to_rect(rz_cpx[1])], axis=0)
-
-        # vz is returned as a real number
-        vz = self.vec_backward_var(both_inp_a, both_inp_b, both_inp_a_swap, both_inp_b_swap, ax, duplicate_bx).reshape((2, -1)).mean(axis=1)
+        rz = np.stack([rZ, rS], axis=0)
+        vz = np.stack([vZ, vS], axis=0)
         return rz, vz
 
     def compute_forward_error(self, az, ax, tau_z):

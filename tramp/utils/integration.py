@@ -68,7 +68,7 @@ def gaussian_measure_2d(m1, s1, m2, s2, f):
     integral = dblquad(integrand, -10, 10, -10, 10)[0]
     return integral
 
-def cpx_gaussian_measure_2d(m1, s1, m2, s2, f):
+def cpx_gaussian_measure_2d(m1, s1, m2, s2, f, real_only=False):
     """Computes two-dimensional gaussian integral of complex valued function.
 
     Parameters
@@ -76,6 +76,7 @@ def cpx_gaussian_measure_2d(m1, s1, m2, s2, f):
     - m1, s1 : real mean and std of gaussian measure 1st dimension
     - m2, s2 : real mean and std of gaussian measure 2nd dimension
     - f : function (R^2 -> C) to integrate
+    - real_only: if true, omit second integral for complex part
 
     Returns
     -------
@@ -84,7 +85,10 @@ def cpx_gaussian_measure_2d(m1, s1, m2, s2, f):
     f_re = lambda *x: np.real(f(*x))
     f_im = lambda *x: np.imag(f(*x))
 
-    return gaussian_measure_2d(m1, s1, m2, s2, f_re) + 1j * gaussian_measure_2d(m1, s1, m2, s2, f_im)
+    if(real_only):
+        return gaussian_measure_2d(m1, s1, m2, s2, f_re)
+    else:
+        return gaussian_measure_2d(m1, s1, m2, s2, f_re) + 1j * gaussian_measure_2d(m1, s1, m2, s2, f_im)
 
 def gaussian_measure_2d_full(cov, mean, f):
     """Computes 2-dimensional gaussian integral (full covariance).
