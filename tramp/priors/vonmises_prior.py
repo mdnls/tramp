@@ -9,24 +9,32 @@ class VonMisesPrior(Prior):
     def __init__(self, size, b):
         '''
         Isotropic Von Mises prior with natural parameter b.
+            input b is represented as a np.complex number (we call this 'complex' format)
 
-        Note: in general, complex natural parameters are represented as [2, ...] dimensional objects
-        with two coordinates for real and imaginary parts.
+        Within tramp, complex vectors are *not* np.complex, rather they are [2, ...] where the first dimension indexes
+            (real, imaginary). (we call this 'rectangular' format).
+
+        The shape of the prior therefore should be of the form [2, ...] matching this convention.
 
         Parameters
         ----------
-        size: dimension of the distribution as a tuple, where each coordinate is a complex number
+        shape: dimension of the distribution in rectangular form as a tuple (2, ...)
         b: natural parameter for a single coordinate represented as a complex number
         '''
         self.size = size
+        self.cpx_size = size[1:]
         self.b = b
         self.repr_init()
 
-        self.angle = np.abs(np.log(b))
+
+        if(np.isclose(np.real(b), 0)):
+            self.angle = np.sign(np.imag(b)) * (np.pi / 2)
+        else:
+            self.angle = np.arctan(np.real(b) / np.imag(b))
         self.disperson = np.abs(b)
 
     def sample(self):
-        return cpx_to_rect(np.exp(1j * np.random.vonmises(mu=self.angle, kappa=self.disperson, size=self.size)))
+        return cpx_to_rect(np.exp(1j * np.random.vonmises(mu=self.angle, kappa=self.disperson, size=self.cpx_size)))
 
     def math(self):
         return r"\text{VM}"
@@ -56,13 +64,9 @@ class VonMisesPrior(Prior):
         vx = np.mean(0.5 * (1 - rx_norm**2))
         return rx, vx
 
-
     def compute_forward_message(self, ax, bx):
-        k = np.abs(self.b)
-        vx_new = np.mean(0.5 * (1 - (sp.i1(k) / sp.i0(k))**2 ))
-        ax_new = 1 / vx_new
-        bx_new = self.b * np.ones_like(rect_to_cpx(bx))
-        return ax_new, cpx_to_rect(bx_new)
+        rx, vx = self.compute_forward_posterior(ax, bx)
+        return 1/vx, rx/vx
 
     def compute_forward_state_evolution(self, ax):
         k = np.abs(self.b)
