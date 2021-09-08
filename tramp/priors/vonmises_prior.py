@@ -1,6 +1,6 @@
 import numpy as np
 from .base_prior import Prior
-from ..utils.misc import vonmises_v_to_b, rect_to_cpx, cpx_to_rect
+from ..utils.misc import vonmises_v_to_b, complex2array, array2complex
 from ..utils.integration import vonmises_measure
 import scipy.special as sp
 
@@ -30,11 +30,11 @@ class VonMisesPrior(Prior):
         if(np.isclose(np.real(b), 0)):
             self.angle = np.sign(np.imag(b)) * (np.pi / 2)
         else:
-            self.angle = np.arctan(np.real(b) / np.imag(b))
+            self.angle = np.arctan(np.imag(b) / np.real(b))
         self.disperson = np.abs(b)
 
     def sample(self):
-        return cpx_to_rect(np.exp(1j * np.random.vonmises(mu=self.angle, kappa=self.disperson, size=self.cpx_size)))
+        return complex2array(np.exp(1j * np.random.vonmises(mu=self.angle, kappa=self.disperson, size=self.cpx_size)))
 
     def math(self):
         return r"\text{VM}"
@@ -49,18 +49,18 @@ class VonMisesPrior(Prior):
         def vonmises_partition(k):
             return np.sum(2 * np.pi * sp.i0(np.abs(k)))
         a = ax
-        b = rect_to_cpx(bx) + self.b
+        b = array2complex(bx) + self.b
         A_post = vonmises_partition(b)
         A_pri = vonmises_partition(self.b * np.ones_like(bx))
         A_gauss = 0.5 * a
         return A_post - A_pri - A_gauss
 
     def compute_forward_posterior(self, ax, bx):
-        b = rect_to_cpx(bx) + self.b
+        b = array2complex(bx) + self.b
         k = np.abs(b)
 
         rx_norm = sp.i1(k)/sp.i0(k)
-        rx = cpx_to_rect(rx_norm * (b / np.abs(b)))
+        rx = complex2array(rx_norm * (b / np.abs(b)))
         vx = np.mean(0.5 * (1 - rx_norm**2))
         return rx, vx
 

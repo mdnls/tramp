@@ -1,7 +1,7 @@
 import numpy as np
 from ..base_channel import SOFactor
 from ...utils.integration import cpx_gaussian_measure_2d, gaussian_measure_2d
-from ...utils.misc import rect_to_cpx, cpx_to_rect
+from ...utils.misc import complex2array, array2complex
 import logging
 
 
@@ -114,12 +114,12 @@ class ProductChannel(SOFactor):
         aZ, aS = az
         bZ, bS = bz
 
-        bZ_cpx = rect_to_cpx(bZ)
-        bS_cpx = rect_to_cpx(bS)
-        bX_cpx = rect_to_cpx(bx)
+        bZ_cpx = array2complex(bZ)
+        bS_cpx = array2complex(bS)
+        bX_cpx = array2complex(bx)
 
         Z = self.vec_partition(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx)
-        rX = cpx_to_rect(self.vec_forward_mean(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx)) / Z
+        rX = complex2array(self.vec_forward_mean(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx)) / Z
         vX = (self.vec_forward_var(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx).mean() / Z).mean()
         return rX, vX
 
@@ -127,14 +127,14 @@ class ProductChannel(SOFactor):
         aZ, aS = az
         bZ, bS = bz
 
-        bZ_cpx = rect_to_cpx(bZ)
-        bS_cpx = rect_to_cpx(bS)
-        bX_cpx = rect_to_cpx(bx)
+        bZ_cpx = array2complex(bZ)
+        bS_cpx = array2complex(bS)
+        bX_cpx = array2complex(bx)
 
         Z = self.vec_partition(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx)
-        rZ = cpx_to_rect(self.vec_backward_mean_Z(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx) / Z)
+        rZ = complex2array(self.vec_backward_mean_Z(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx) / Z)
         vZ = (self.vec_backward_var_Z(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx) / Z).mean()
-        rS = cpx_to_rect(self.vec_backward_mean_S(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx) / Z)
+        rS = complex2array(self.vec_backward_mean_S(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx) / Z)
         vS = (self.vec_backward_var_S(aZ, bZ_cpx, aS, bS_cpx, ax, bX_cpx) / Z).mean()
 
         rz = np.stack([rZ, rS], axis=0)

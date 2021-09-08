@@ -88,9 +88,4 @@ def vonmises_v_to_b(v):
     fprime = lambda k: 0.5 + 0.5 * (iv(2, k) / i0(k)) - (i1(k)/i0(k))**2
     return scipy.optimize.newton(func=F, x0=0, fprime=fprime)
 
-def rect_to_cpx(x):
-    return x[0] + 1j * x[1]
-
-def cpx_to_rect(x):
-    return np.stack((np.real(x), np.imag(x)), axis=0)
 
