@@ -55,9 +55,9 @@ class ProductChannel(SOFactor):
         return _apply
 
     def sample(self, s, z):
-        if s.shape != self.shape:
-            raise ValueError("Bad shape for x")
-        if z.shape != self.shape:
+        if tuple(s.shape) != tuple(self.shape):
+            raise ValueError("Bad shape for s")
+        if tuple(z.shape) != tuple(self.shape):
             raise ValueError("Bad shape for z")
         X = z * s
         return X
