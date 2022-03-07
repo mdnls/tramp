@@ -6,4 +6,4 @@ from .total_variation_model import (
 )
 from .committee_model import committee, sgn_committee, soft_committee
 from .factor_model import FactorModel
-from .base_model import Model
+from .base_model import Model, sequence

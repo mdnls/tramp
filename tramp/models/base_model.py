@@ -1,8 +1,14 @@
 from ..base import ReprMixin, Variable, Factor
+from ..variables import SISOVariable as V
 from .dag_algebra import ModelDAG
 import numpy as np
 import networkx as nx
 
+def sequence(*args):
+    model = args[0]
+    for i, R in enumerate(args[1:]):
+        model = model @ V(id=f"z_{i}") @ R
+    return model
 
 def to_list(X):
     if not isinstance(X, tuple):
@@ -146,3 +152,4 @@ class Model(ReprMixin):
     def compute_dual_free_energy(self, ms, alphas):
         # TODO
         return A_dual
+

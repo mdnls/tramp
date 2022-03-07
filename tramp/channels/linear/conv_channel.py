@@ -12,6 +12,121 @@ logger = logging.getLogger(__name__)
 
 
 
+class BatchConvChannel(Channel):
+    """
+    Conv (complex or real) channel X(i) = W*Z(i) where W, Z are assumed to have channels i=1...N. Applies the same
+    convolutional filter to each channel.
+
+    Parameters
+    ----------
+    - filter: real or complex array
+        Filter weights. The conv weights w are given by w[u] = f*[-u].
+        The conv and filter weights ffts are conjugate.
+    - N: integer
+        number of input channels
+    - real: bool
+        if True assume x, w, z real
+        if False assume x, w, z complex, given by 2 x N x d dimensional vectors
+    """
+    def __init__(self, filter, N, real=True):
+        self.conv = ConvChannel(filter, real=real)
+        self.N = N
+
+    def convolve(self, Z):
+        return np.stack([self.conv.convolve(z) for z in Z], axis=0)
+
+    def sample(self, Z):
+        if not self.real:
+            Z = Z[0, :, :] + 1j * Z[1, :, :]
+        X = self.convolve(Z)
+        if not self.real:
+            X = np.stack([np.real(X), np.imag(X)], axis=0)
+        return X
+
+
+    def math(self):
+        return r"$I \oprod \ast$"
+
+
+    def second_moment(self, tau_z):
+        return tau_z * self.conv.spectrum.mean()
+
+
+    def compute_n_eff(self, az, ax):
+        return self.conv.compute_n_eff(az, ax)
+
+
+
+    def compute_backward_mean(self, az, bz, ax, bx, return_fft=False):
+        return np.stack([self.compute_backward_mean(az, bz[:, i, :], ax, bx[:, i, :], return_fft=return_fft) for i in range(self.N)], axis=1)
+
+
+    def compute_forward_mean(self, az, bz, ax, bx):
+        #!!! TODO: is this correct?
+        # estimate x from x = Wz we have rx = W rz
+        rz_fft = self.compute_backward_mean(az, bz, ax, bx, return_fft=True)
+        rx = np.stack([ifftn(self.conv.w_fft * rz_fft[:, i]) for i in range(self.N)], axis=0)
+        if self.real:
+            rx = np.real(rx)
+        else:
+            rx = np.stack([np.real(rx), np.imag(rx)], axis=1)
+        return rx
+
+    def compute_backward_variance(self, az, ax):
+        assert az > 0
+        n_eff = self.compute_n_eff(az, ax)
+        vz = (1 - n_eff) / az
+        return vz
+
+    def compute_forward_variance(self, az, ax):
+        if ax == 0:
+            s_mean = np.mean(self.conv.spectrum)
+            return s_mean / az
+        n_eff = self.compute_n_eff(az, ax)
+        vx = n_eff / ax
+        return vx
+
+    def compute_backward_posterior(self, az, bz, ax, bx):
+        # estimate z from x = Wz
+        rz = self.compute_backward_mean(az, bz, ax, bx)
+        vz = self.compute_backward_variance(az, ax)
+        return rz, vz
+
+    def compute_forward_posterior(self, az, bz, ax, bx):
+        # estimate x from x = Wz
+        rx = self.compute_forward_mean(az, bz, ax, bx)
+        vx = self.compute_forward_variance(az, ax)
+        return rx, vx
+
+    def compute_backward_error(self, az, ax, tau_z):
+        vz = self.compute_backward_variance(az, ax)
+        return vz
+
+    def compute_forward_error(self, az, ax, tau_z):
+        vx = self.compute_forward_variance(az, ax)
+        return vx
+
+    def compute_log_partition(self, az, bz, ax, bx):
+        rz = self.compute_backward_mean(az, bz, ax, bx)
+        rx = self.compute_forward_mean(az, bz, ax, bx)
+        a = az + ax * self.conv.spectrum
+        coef = 0.5 if self.conv.real else 1
+        logZ = (
+                0.5 * np.sum(bz * rz) + 0.5 * np.sum(bx * rx) +
+                coef * self.N * np.sum(np.log(2 * np.pi / a))
+        )
+        return logZ
+
+    def compute_mutual_information(self, az, ax, tau_z):
+        I = 0.5 * np.log(self.N * (az + ax * self.conv.spectrum) * tau_z)
+        I = I.mean()
+        return I
+
+    def compute_free_energy(self, az, ax, tau_z):
+        tau_x = self.second_moment(tau_z)
+        I = self.compute_mutual_information(az, ax, tau_z)
+        A = 0.5 * (az * tau_z + ax * tau_x) - I + 0.5 * np.log(2 * np.pi * tau_z / np.e)
+        return A
 
 class ConvChannel(Channel):
     """Conv (complex or real) channel x = w * z.
@@ -341,7 +456,6 @@ class MultiConvChannel(LinearChannel):
 
         Note: _scale is not using a VirtualMCCMatrix because that would require densifying S
         '''
-        idxs = "abcdefghijklmnopqrstuvwx"[:self.block_order]
 
         m, n = self.macro_shape
         if(transpose):

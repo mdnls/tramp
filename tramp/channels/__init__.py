@@ -11,10 +11,12 @@ from .linear.bias_channel import BiasChannel
 from .linear.rotation_channel import RotationChannel
 from .linear.unitary_channel import UnitaryChannel
 from .linear.linear_channel import LinearChannel, DiagonalChannel, ColorwiseLinearChannel
+from .linear.aniso_linear_channel import AnisoLinearChannel
 from .linear.complex_linear_channel import ComplexLinearChannel
-from .linear.product_channel import ProductChannel
+from .linear.product_channel import ProductChannel, MC_ProductChannel
+from .linear.aniso_to_iso import AnisoToIso, IsoToAniso
 from .linear.conv_channel import (
-    ConvChannel, Blur1DChannel, Blur2DChannel,
+    ConvChannel, BatchConvChannel, Blur1DChannel, Blur2DChannel,
     DifferentialChannel, LaplacianChannel, MultiConvChannel
 )
 from .linear.gradient_channel import GradientChannel
@@ -47,6 +49,7 @@ CHANNEL_CLASSES = {
     "linear": LinearChannel,
     "complex_linear": ComplexLinearChannel,
     "conv": ConvChannel,
+    "batchconv": BatchConvChannel,
     "blur_1d": Blur1DChannel,
     "blur_2d": Blur2DChannel,
     "diff": DifferentialChannel,
@@ -67,7 +70,11 @@ CHANNEL_CLASSES = {
     "diagonal": DiagonalChannel,
     "colorwise": ColorwiseLinearChannel,
     "upsample": UpsampleChannel,
-    "product": ProductChannel
+    "product": ProductChannel,
+    "mc_product": MC_ProductChannel,
+    "aniso2iso": AnisoToIso,
+    "iso2aniso": IsoToAniso,
+    "aniso_linear": AnisoLinearChannel
 }
 
 

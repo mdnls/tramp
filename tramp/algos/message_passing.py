@@ -187,7 +187,7 @@ class MessagePassing():
     def check_message(self, new_message, old_message):
         "Raise error on nan values"
         for source, target, data in new_message:
-            if np.isnan(data['a']):
+            if np.isnan(data['a']).any():
                 logger.error(
                     f"{source.id}->{target.id} a is nan\n" +
                     "incoming:\n" +
@@ -196,8 +196,10 @@ class MessagePassing():
                 logger.warning("restoring old message dag")
                 self.reset_message_dag(self.old_message_dag)
                 raise ValueError(f"{source.id}->{target.id} a is nan")
-            if (data['a'] < 0):
+
+            if (np.isscalar(data['a']) and data['a'] < 0):
                 logger.warning(f"{source.id}->{target.id} negative a {data['a']}")
+
             if ('b' in data) and np.isnan(data['b']).any():
                 logger.error(
                     f"{source.id}->{target.id} b is nan\n" +

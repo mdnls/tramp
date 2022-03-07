@@ -150,3 +150,85 @@ class ProductChannel(SOFactor):
     def second_moment(self, tau_z):
         raise NotImplementedError
 
+class MC_ProductChannel(SOFactor):
+    n_prev = 2
+
+    def __init__(self, shape, n_samples, layer_idx=None):
+        '''
+        This channel represents the operation x = z*s where x, z, s are complex vectors
+            and the complex multiplication is performed elementwise.
+
+        All posterior parameter inferences are computed as monte carlo estimates.
+
+        Parameters
+        ----------
+        shape: the shape of x, z, s. The first dimension is the real/complex dimension, must be of length 2.
+        layer_idx: the index of this layer, used for its math representation
+        n_samples: number of samples for monte carlo parameter estimates.
+        '''
+        self.shape = shape
+        self.layer_idx = layer_idx
+        self.repr_init()
+        self.n_samples = n_samples
+
+    def sample(self, s, z):
+        if tuple(s.shape) != tuple(self.shape):
+            raise ValueError("Bad shape for s")
+        if tuple(z.shape) != tuple(self.shape):
+            raise ValueError("Bad shape for z")
+        X = z * s
+        return X
+
+    def math(self):
+        if (self.layer_idx is not None):
+            return f"$D_{self.layer_idx}$"
+        else:
+            return "D"
+
+    def compute_forward_posterior(self, az, bz, ax, bx):
+        aZ, aS = az
+        bZ, bS = bz
+
+        Z_sample = np.random.normal(size=[self.n_samples] + list(self.shape))/np.sqrt(aZ) + (bZ / aZ)
+        S_sample = np.random.normal(size=[self.n_samples] + list(self.shape))/np.sqrt(aS) + (bS / aS)
+        X_sample = np.stack( (Z_sample[:, 0] * S_sample[:, 0] - Z_sample[:, 1] * S_sample[:, 1],
+                              Z_sample[:, 0]*S_sample[:, 1] + Z_sample[:, 1]*S_sample[:, 0]), axis=1)
+
+        energies = ((bx[None, :] * X_sample) - 0.5 * ax * (X_sample**2)).sum(axis=1)[:, None]
+        measure = np.exp(energies)
+        Z = np.mean(measure, axis=0)
+        rX = np.mean(X_sample * measure, axis=0) / Z
+        vX = np.mean(np.mean(X_sample**2 * measure, axis=0) / Z)
+
+        return rX, vX
+
+    def compute_backward_posterior(self, az, bz, ax, bx):
+        aZ, aS = az
+        bZ, bS = bz
+
+        Z_sample = np.random.normal(size=[self.n_samples] + list(self.shape))/np.sqrt(aZ) + (bZ / aZ)
+        S_sample = np.random.normal(size=[self.n_samples] + list(self.shape))/np.sqrt(aS) + (bS / aS)
+        X_sample = np.stack( (Z_sample[:, 0] * S_sample[:, 0] - Z_sample[:, 1] * S_sample[:, 1],
+                              Z_sample[:, 0]*S_sample[:, 1] + Z_sample[:, 1]*S_sample[:, 0]), axis=1)
+
+        energies = ((bx[None, :] * X_sample) - 0.5 * ax * (X_sample**2)).sum(axis=1)[:, None]
+        measure = np.exp(energies)
+        Z = np.mean(measure, axis=0)
+        rZ = np.mean(Z_sample * measure, axis=0) / Z
+        vZ = np.mean(np.mean(Z_sample**2 * measure, axis=0) / Z)
+        rS = np.mean(S_sample * measure, axis=0) / Z
+        vS = np.mean(np.mean(S_sample**2 * measure, axis=0) / Z)
+
+        rz = (rZ, rS)
+        vz = (vZ, vS)
+        return rz, vz
+
+    def compute_forward_error(self, az, ax, tau_z):
+        raise NotImplementedError
+
+    def compute_backward_error(self, az, ax, tau_z):
+        raise NotImplementedError
+
+    def second_moment(self, tau_z):
+        raise NotImplementedError
+
